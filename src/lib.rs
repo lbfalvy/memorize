@@ -1,19 +1,19 @@
 //! Cache the return values of an effectless closure in a hashmap
 //! Inspired by the `closure_cacher` crate, but attempts to provide a more
 //! versatile implementation.
-//! 
+//!
 //! ```
 //! use memorize::{cached, Cache};
-//! 
+//!
 //! let demo = cached(|arg, _| arg * 2);
 //! assert_eq!(demo.find(&7), 14);
 //! ```
-//! 
+//!
 //! The second argument is a callback, it can be used for recursion.
-//! 
+//!
 //! ```
 //! use memorize::{cached, Cache};
-//! 
+//!
 //! let demo = cached(|arg, r| match arg {
 //!   1 | 2 => 1,
 //!   n => r(&(n - 1)) + r(&(n - 2)),
@@ -29,7 +29,8 @@ use hashbrown::HashMap;
 
 /// A cache that can be polled for a value with its borrowed form.
 pub trait Cache<I, O> {
-  /// Obtain the return value of the function for the owned version of this input.
+  /// Obtain the return value of the function for the owned version of this
+  /// input.
   fn find<Q: ?Sized>(&self, q: &Q) -> O
   where
     Q: Eq + Hash + ToOwned<Owned = I>,
