@@ -16,7 +16,7 @@
 //!
 //! let demo = cached(|arg, r| match arg {
 //!   1 | 2 => 1,
-//!   n => r(&(n - 1)) + r(&(n - 2)),
+//!   n => r.r(&(n - 1)) + r.r(&(n - 2)),
 //! });
 //! assert_eq!(demo.find(&15), 610)
 //! ```
@@ -37,6 +37,14 @@ pub trait Cache<I, O> {
     I: Borrow<Q>;
 }
 
+/// A wrapper around the recursive self-handle to keep `rust-analyzer` from
+/// hanging. See [rust-analyzer#11063](https://github.com/rust-lang/rust-analyzer/issues/11063)
+#[derive(Clone, Copy)]
+pub struct Recur<'a, I, O>(pub &'a dyn for<'b> Fn(&'b I) -> O);
+impl<'a, I, O> Recur<'a, I, O> {
+  pub fn r(&self, i: &I) -> O { self.0(i) }
+}
+
 /// Cache the return values of an effectless closure in a hashmap. This struct
 /// is available for unforeseen use cases, but you should probably use [cached]
 /// and [Cache]
@@ -45,22 +53,16 @@ struct CacheImpl<I, O, F> {
   closure: F,
 }
 
-impl<
-  I: Eq + Hash + Clone,
-  O: Clone,
-  F: for<'b> Fn(I, &'b dyn Fn(&'_ I) -> O) -> O,
-> CacheImpl<I, O, F>
+impl<I: Eq + Hash + Clone, O: Clone, F: for<'a> Fn(I, Recur<'a, I, O>) -> O>
+  CacheImpl<I, O, F>
 {
   pub fn new(closure: F) -> Self {
     Self { store: RefCell::new(HashMap::new()), closure }
   }
 }
 
-impl<
-  I: Eq + Hash + Clone,
-  O: Clone,
-  F: for<'b> Fn(I, &'b dyn Fn(&'_ I) -> O) -> O,
-> Cache<I, O> for CacheImpl<I, O, F>
+impl<I: Eq + Hash + Clone, O: Clone, F: for<'a> Fn(I, Recur<'a, I, O>) -> O>
+  Cache<I, O> for CacheImpl<I, O, F>
 {
   /// Produce and cache a result by cloning I if necessary
   fn find<Q: ?Sized>(&self, q: &Q) -> O
@@ -74,7 +76,7 @@ impl<
     }
     // In the moment of invocation the refcell is on immutable
     // this is important for recursive calculations
-    let result = closure(q.to_owned(), &|i: &I| self.find::<I>(i));
+    let result = closure(q.to_owned(), Recur(&|i: &I| self.find::<I>(i)));
     let mut store = self.store.borrow_mut();
     let (_, v) = store
       .raw_entry_mut()
@@ -97,7 +99,7 @@ impl<I, O, F> IntoIterator for CacheImpl<I, O, F> {
 /// Memoize a function, returning an opaque object that remembers arguments and
 /// return values.
 pub fn cached<I: Eq + Hash + Clone, O: Clone>(
-  func: impl for<'b> Fn(I, &'b dyn Fn(&'_ I) -> O) -> O,
+  func: impl for<'a> Fn(I, Recur<'a, I, O>) -> O,
 ) -> impl Cache<I, O> {
   CacheImpl::new(func)
 }
@@ -129,11 +131,11 @@ mod test {
   #[test]
   fn recursive() {
     let runs = RefCell::new(0);
-    let cache = CacheImpl::new(|val, this| {
+    let cache = CacheImpl::new(|val, r| {
       *runs.borrow_mut() += 1;
       match val {
         1 | 2 => 1,
-        n => this(&(n - 1)) + this(&(n - 2)),
+        n => r.r(&(n - 1)) + r.r(&(n - 2)),
       }
     });
     assert_eq!(cache.find(&15), 610, "correct fibonacci number");

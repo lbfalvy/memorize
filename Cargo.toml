@@ -1,18 +1,16 @@
 [package]
 name = "memorize"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/lbfalvy/memorize"
 description = """
-Versatile and fast closure cacher
+Versatile and fast closure cacher with support for recursive algorithms
 """
-authors = [
-  "Lawrence Bethlenfalvy <lbfalvy@protonmail.com>"
-]
+authors = ["Lawrence Bethlenfalvy <lbfalvy@protonmail.com>"]
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hashbrown = "0.14.2"
+hashbrown = "0.14"
